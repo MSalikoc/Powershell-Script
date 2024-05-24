@@ -1,1 +1,71 @@
+## To extract BitLocker recovery keys for all devices registered in Intune using PowerShell and Microsoft Graph API, follow these steps:
 
+Create an Azure AD App and Grant Permissions:
+
+Log in to the Azure Portal.
+Go to Azure Active Directory.
+Navigate to "App registrations" and create a new app registration.
+Grant necessary permissions to the app, such as "Device.Read.All" and "DeviceManagementManagedDevices.Read.All".
+Note down the Client ID and Tenant ID from the app registration page.
+Generate a client secret under the "Certificates & secrets" section and note it down.
+PowerShell Script:
+
+Use the following PowerShell script to interact with the Microsoft Graph API and retrieve the BitLocker recovery keys:
+
+'''
+# It is recommended to use PowerShell 7.x
+
+# Install necessary module
+Install-Module -Name Microsoft.Graph -Scope CurrentUser
+
+# Authenticate with Microsoft Graph API
+$tenantId = "YOUR_TENANT_ID"
+$clientId = "YOUR_CLIENT_ID"
+$clientSecret = "YOUR_CLIENT_SECRET"
+
+# Obtain Access Token
+$body = @{
+    grant_type    = "client_credentials"
+    scope         = "https://graph.microsoft.com/.default"
+    client_id     = $clientId
+    client_secret = $clientSecret
+}
+$tokenResponse = Invoke-RestMethod -Method Post -Uri "https://login.microsoftonline.com/$tenantId/oauth2/v2.0/token" -ContentType "application/x-www-form-urlencoded" -Body $body
+$accessToken = $tokenResponse.access_token
+
+# Retrieve devices
+$uri = "https://graph.microsoft.com/v1.0/deviceManagement/managedDevices"
+$headers = @{
+    Authorization = "Bearer $accessToken"
+}
+$devicesResponse = Invoke-RestMethod -Uri $uri -Headers $headers -Method Get
+$devices = $devicesResponse.value
+
+# Retrieve BitLocker keys and export them
+$bitlockerKeys = @()
+foreach ($device in $devices) {
+    $deviceId = $device.id
+    $bitlockerUri = "https://graph.microsoft.com/v1.0/deviceManagement/managedDevices/$deviceId/recoveryKeys"
+    $bitlockerResponse = Invoke-RestMethod -Uri $bitlockerUri -Headers $headers -Method Get
+    foreach ($key in $bitlockerResponse.value) {
+        $bitlockerKeys += [PSCustomObject]@{
+            DeviceName    = $device.deviceName
+            DeviceId      = $deviceId
+            RecoveryKeyId = $key.id
+            RecoveryKey   = $key.recoveryKey
+        }
+    }
+}
+
+# Save BitLocker keys to a CSV file
+$bitlockerKeys | Export-Csv -Path "BitLockerRecoveryKeys.csv" -NoTypeInformation
+'''
+Write-Host "BitLocker recovery keys successfully exported."
+
+
+
+Notes:
+Replace YOUR_TENANT_ID, YOUR_CLIENT_ID, and YOUR_CLIENT_SECRET with the appropriate values from your Azure AD app registration.
+Ensure that you have the necessary permissions and modules installed before running the script.
+This script can retrieve BitLocker recovery keys for devices managed by Intune. Ensure that such sensitive information is handled securely and accessed only by authorized personnel.
+This script allows you to collect BitLocker recovery keys for all devices managed by Intune. Make sure the necessary permissions and API access are configured correctly for the script to function properly.
